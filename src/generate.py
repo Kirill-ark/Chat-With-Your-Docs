@@ -1,10 +1,78 @@
 """Phase 4 — Generation: grounded prompt -> LLM -> answer + sources.
 
-The prompt instructs the model to answer using ONLY the retrieved context and to
-say "I don't know" when the answer is not present — this is the anti-hallucination
-mechanism. Returns the answer plus the list of sources (filename, page) it drew on.
-
-TODO (Phase 4): implement the prompt template and LLM call below.
+The grounding prompt is the anti-hallucination mechanism: the model is told to
+answer ONLY from the retrieved context and that "the documents do not contain
+this" is a correct, expected answer. The source list under each answer comes
+from retrieval metadata (deterministic), never from the model's own text —
+generated citations could be wrong, metadata cannot.
 """
 
-# TODO: implement in Phase 4
+from groq import Groq
+
+from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE
+from src.retrieve import retrieve
+
+SYSTEM_PROMPT = """\
+You are an assistant that answers questions strictly from the provided context.
+
+Rules:
+- Use ONLY the information from the context below. Never use your own knowledge.
+- If the context does not contain the answer, reply that the documents do not \
+contain this information. That is a correct answer, not a failure.
+- When you rely on a passage, mention its source in the text, e.g. (file.pdf, p. 4).
+- Answer in the same language the question is asked in.
+- Be concise and factual."""
+
+
+def build_user_prompt(question: str, chunks: list[dict]) -> str:
+    """Assemble the augmented prompt: labelled context passages + the question."""
+    context = "\n\n".join(
+        f"[Source: {c['file']}, p.{c['page']}]\n{c['text']}" for c in chunks
+    )
+    return f"Context:\n{context}\n\nQuestion: {question}"
+
+
+def answer(question: str) -> dict:
+    """Full RAG answer: retrieve -> grounded prompt -> LLM.
+
+    Returns {"answer": str, "sources": [{"file", "page", "score"}, ...]}.
+    Sources are the retrieved chunks' metadata — what the model was actually
+    shown — ordered best-match first.
+    """
+    if not GROQ_API_KEY:
+        raise RuntimeError(
+            "GROQ_API_KEY is not set. Copy .env.example to .env and add your key."
+        )
+
+    chunks = retrieve(question)
+    client = Groq(api_key=GROQ_API_KEY)
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        temperature=LLM_TEMPERATURE,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": build_user_prompt(question, chunks)},
+        ],
+    )
+    return {
+        "answer": response.choices[0].message.content,
+        "sources": [
+            {"file": c["file"], "page": c["page"], "score": c["score"]}
+            for c in chunks
+        ],
+    }
+
+
+if __name__ == "__main__":
+    # Sanity check: python -m src.generate your question here
+    import sys
+
+    question = " ".join(sys.argv[1:])
+    if not question:
+        sys.exit("usage: python -m src.generate <question>")
+    result = answer(question)
+    print(f"Q: {question}\n")
+    print(result["answer"])
+    print("\nSources:")
+    for s in result["sources"]:
+        print(f"  - {s['file']}, p.{s['page']} (score {s['score']})")

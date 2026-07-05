@@ -8,6 +8,10 @@ so keeping them in one place makes the experiment easy to run.
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()  # pull GROQ_API_KEY etc. from .env before any os.getenv below
+
 # --- Paths ---
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CHROMA_DIR = str(PROJECT_ROOT / "chroma_db")  # persisted vectors (gitignored)
@@ -29,7 +33,8 @@ CHUNK_OVERLAP = 100
 TOP_K = 5  # how many nearest chunks to pull for the LLM
 
 # --- LLM (generation) ---
-# Provider is not finalized yet (Groq vs Gemini vs local Ollama) — see project plan.
 # Key comes from the environment ONLY, never hard-coded. On deploy it is a hosting secret.
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")  # placeholder default
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+# Low temperature = near-deterministic wording; we want factual QA, not creativity.
+LLM_TEMPERATURE = 0.1
