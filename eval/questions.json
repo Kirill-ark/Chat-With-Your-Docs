@@ -1,0 +1,6 @@
+[
+  {
+    "question": "EXAMPLE — replace with a real question about your test PDF",
+    "expected_source": {"file": "notes.pdf", "page": 4}
+  }
+]

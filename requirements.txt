@@ -1,0 +1,9 @@
+# Core RAG stack. Versions left loose for now; pin exact versions in Phase 8
+# once the app runs end-to-end (important for reproducible Streamlit Cloud deploy).
+
+pymupdf            # PDF parsing (text + page numbers for citations)
+sentence-transformers  # local embeddings (all-MiniLM-L6-v2)
+chromadb           # local persisted vector database
+groq               # LLM API client (provider may change)
+streamlit          # chat + file-upload UI
+python-dotenv      # load .env locally

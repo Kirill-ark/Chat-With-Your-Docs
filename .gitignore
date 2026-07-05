@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Chat-With-Your-Docs project-specific ---
+# Persisted vector database (regenerated locally from PDFs)
+chroma_db/
+# Test / user PDFs — do not commit documents
+data/
+*.pdf
+# PyCharm project files
+.idea/
