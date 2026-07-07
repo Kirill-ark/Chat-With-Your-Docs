@@ -61,16 +61,28 @@ st.title("Chat With Your Docs")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+def show_sources(sources: list[dict]) -> None:
+    """Render the sources block; a caption when nothing relevant was found."""
+    if not sources:
+        st.caption("No relevant passages found in the documents.")
+        return
+    with st.expander("Sources"):
+        for s in sources:
+            match_label = (
+                f"similarity {s['score']:.0%}"
+                if s["score"] is not None
+                else "exact page match"
+            )
+            st.markdown(f"**`{s['file']}`, p. {s['page']}** — {match_label}")
+            st.caption(s["text"][:350].replace("\n", " ") + "...")
+
+
 # Redraw the whole conversation on every rerun
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["text"])
-        if msg.get("sources"):
-            with st.expander("Sources"):
-                for s in msg["sources"]:
-                    st.markdown(
-                        f"- `{s['file']}`, p. {s['page']} — similarity {s['score']}"
-                    )
+        if msg["role"] == "assistant":
+            show_sources(msg.get("sources", []))
 
 question = st.chat_input("Ask a question about your documents")
 
@@ -97,15 +109,7 @@ if question:
                 st.error(f"LLM API error: {e}")
                 st.stop()
         st.markdown(result["answer"])
-        with st.expander("Sources"):
-            for s in result["sources"]:
-                match_label = (
-                    f"similarity {s['score']:.0%}"
-                    if s["score"] is not None
-                    else "exact page match"
-                )
-                st.markdown(f"**`{s['file']}`, p. {s['page']}** — {match_label}")
-                st.caption(s["text"][:350].replace("\n", " ") + "...")
+        show_sources(result["sources"])
 
     st.session_state.messages.append(
         {"role": "assistant", "text": result["answer"], "sources": result["sources"]}

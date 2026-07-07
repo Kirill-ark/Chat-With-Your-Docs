@@ -31,6 +31,11 @@ CHUNK_OVERLAP = 100
 
 # --- Retrieval ---
 TOP_K = 5  # how many nearest chunks to pull for the LLM
+# Relevance floor: top-k always returns something, even for small talk or
+# off-topic questions. Observed score bands on the test corpus: real matches
+# 0.6-0.7, weak matches ~0.4, garbage <=0.13 — so 0.25 sits safely between.
+# To be validated against the eval set in Phase 6.
+MIN_SIMILARITY = 0.25
 
 # --- LLM (generation) ---
 # Key comes from the environment ONLY, never hard-coded. On deploy it is a hosting secret.
