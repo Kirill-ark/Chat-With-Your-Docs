@@ -1,6 +1,57 @@
 [
   {
-    "question": "EXAMPLE — replace with a real question about your test PDF",
-    "expected_source": {"file": "notes.pdf", "page": 4}
+    "question": "What structural problems do inclined columns cause in high-rise buildings?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 2}
+  },
+  {
+    "question": "What causes vertical deformation in cast-in-place concrete high-rise structures?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 3}
+  },
+  {
+    "question": "What software implements the layered loading calculation model?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 4}
+  },
+  {
+    "question": "When did China begin to adopt the large-space shear wall structure at the bottom?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 5}
+  },
+  {
+    "question": "What are the dimensions of the conversion beam in the engineering calculation example?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 6}
+  },
+  {
+    "question": "How is the lateral stiffness of floors calculated according to the Guangdong provincial standard?",
+    "type": "direct",
+    "expected_source": {"file": "testing.pdf", "page": 7}
+  },
+  {
+    "question": "Why is it risky to leave a building site abandoned for a long time before finishing it?",
+    "type": "paraphrased",
+    "expected_source": {"file": "testing.pdf", "page": 1}
+  },
+  {
+    "question": "What measures help avoid weak points in the transfer storey during seismic events?",
+    "type": "paraphrased",
+    "expected_source": {"file": "testing.pdf", "page": 5}
+  },
+  {
+    "question": "Which measures improve earthquake safety for slanted load-bearing elements?",
+    "type": "paraphrased",
+    "expected_source": {"file": "testing.pdf", "page": 2}
+  },
+  {
+    "question": "What is the average construction cost per square meter of high-rise buildings in China?",
+    "type": "unanswerable",
+    "expected_source": null
+  },
+  {
+    "question": "Which foundation types are recommended for skyscrapers built on soft soil?",
+    "type": "unanswerable",
+    "expected_source": null
   }
 ]
