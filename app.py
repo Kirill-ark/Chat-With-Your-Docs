@@ -99,9 +99,12 @@ if question:
         st.markdown(result["answer"])
         with st.expander("Sources"):
             for s in result["sources"]:
-                st.markdown(
-                    f"**`{s['file']}`, p. {s['page']}** — similarity {s['score']}"
+                match_label = (
+                    f"similarity {s['score']:.0%}"
+                    if s["score"] is not None
+                    else "exact page match"
                 )
+                st.markdown(f"**`{s['file']}`, p. {s['page']}** — {match_label}")
                 st.caption(s["text"][:350].replace("\n", " ") + "...")
 
     st.session_state.messages.append(

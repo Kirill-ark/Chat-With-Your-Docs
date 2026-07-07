@@ -10,7 +10,7 @@ generated citations could be wrong, metadata cannot.
 from groq import Groq
 
 from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE
-from src.retrieve import retrieve
+from src.retrieve import detect_page_reference, fetch_page, retrieve
 
 SYSTEM_PROMPT = """\
 You are an assistant that answers questions strictly from the provided context.
@@ -44,7 +44,14 @@ def answer(question: str) -> dict:
             "GROQ_API_KEY is not set. Copy .env.example to .env and add your key."
         )
 
-    chunks = retrieve(question)
+    # Query routing: a question about a specific page is answered from that
+    # page's chunks directly (metadata filter); anything else goes through
+    # semantic search. Falls back to semantic search if the page is empty.
+    page = detect_page_reference(question)
+    chunks = fetch_page(page) if page is not None else []
+    if not chunks:
+        chunks = retrieve(question)
+
     client = Groq(api_key=GROQ_API_KEY)
     response = client.chat.completions.create(
         model=LLM_MODEL,

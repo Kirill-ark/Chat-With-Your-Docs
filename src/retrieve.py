@@ -5,8 +5,46 @@ The question is embedded by the SAME model that embedded the documents
 top-k nearest chunks by cosine similarity, with metadata and scores.
 """
 
+import re
+
 from src.config import TOP_K
 from src.ingest import get_collection, get_embedder
+
+# "page 5", "p. 5", "стр. 5", "страница 5" — a question about a specific page
+# is a STRUCTURAL query: semantic search can't answer it (embeddings encode
+# content meaning, not document structure), but chunk metadata can.
+PAGE_REFERENCE = re.compile(
+    r"(?:\bpage\b|\bp\.|стр\.?|страниц\w*)\s*(\d+)", re.IGNORECASE
+)
+
+
+def detect_page_reference(question: str) -> int | None:
+    """Return the page number mentioned in the question, if any."""
+    match = PAGE_REFERENCE.search(question)
+    return int(match.group(1)) if match else None
+
+
+def fetch_page(page: int) -> list[dict]:
+    """Fetch ALL chunks of one page via metadata filter — no vector search.
+
+    Used for structural questions ("what is on page 5?"). Score is None:
+    these chunks are an exact page match, not a similarity guess.
+    """
+    result = get_collection().get(
+        where={"page": page}, include=["documents", "metadatas"]
+    )
+    chunks = [
+        {"text": text, "file": meta["file"], "page": meta["page"], "score": None,
+         "_id": chunk_id}
+        for chunk_id, text, meta in zip(
+            result["ids"], result["documents"], result["metadatas"]
+        )
+    ]
+    # get() returns arbitrary order; restore reading order by chunk index in id
+    chunks.sort(key=lambda c: (c["file"], int(c["_id"].rsplit("_c", 1)[1])))
+    for c in chunks:
+        del c["_id"]
+    return chunks
 
 
 def retrieve(question: str, k: int = TOP_K) -> list[dict]:
