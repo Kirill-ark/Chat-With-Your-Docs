@@ -57,7 +57,12 @@ def answer(question: str) -> dict:
     return {
         "answer": response.choices[0].message.content,
         "sources": [
-            {"file": c["file"], "page": c["page"], "score": c["score"]}
+            {
+                "file": c["file"],
+                "page": c["page"],
+                "score": c["score"],
+                "text": c["text"],
+            }
             for c in chunks
         ],
     }

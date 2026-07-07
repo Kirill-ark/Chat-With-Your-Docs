@@ -100,8 +100,9 @@ if question:
         with st.expander("Sources"):
             for s in result["sources"]:
                 st.markdown(
-                    f"- `{s['file']}`, p. {s['page']} — similarity {s['score']}"
+                    f"**`{s['file']}`, p. {s['page']}** — similarity {s['score']}"
                 )
+                st.caption(s["text"][:350].replace("\n", " ") + "...")
 
     st.session_state.messages.append(
         {"role": "assistant", "text": result["answer"], "sources": result["sources"]}
