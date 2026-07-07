@@ -5,6 +5,7 @@ Parsing lives in its own function (an "adapter"): anything that yields
 so adding .txt/.docx support later means writing one new parser, nothing else.
 """
 
+import threading
 from pathlib import Path
 
 import chromadb
@@ -20,6 +21,8 @@ from src.config import (
 )
 
 _embedder = None
+_client = None
+_client_lock = threading.Lock()
 
 
 def get_embedder() -> SentenceTransformer:
@@ -36,9 +39,17 @@ def get_embedder() -> SentenceTransformer:
 
 
 def get_collection() -> chromadb.Collection:
-    """Open (or create) the persisted Chroma collection, cosine similarity."""
-    client = chromadb.PersistentClient(path=CHROMA_DIR)
-    return client.get_or_create_collection(
+    """Open (or create) the persisted Chroma collection, cosine similarity.
+
+    The client is created once per process behind a lock: Streamlit Cloud runs
+    sessions in parallel threads, and concurrent PersistentClient creation for
+    the same path races inside Chroma's client registry (KeyError on deploy).
+    """
+    global _client
+    with _client_lock:
+        if _client is None:
+            _client = chromadb.PersistentClient(path=CHROMA_DIR)
+    return _client.get_or_create_collection(
         COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
     )
 
