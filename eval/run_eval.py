@@ -26,6 +26,34 @@ from src.retrieve import retrieve
 QUESTIONS_PATH = Path(__file__).parent / "questions.json"
 
 
+def rank_of_expected(question, expected, embedder, collection, k=TOP_K):
+    """Rank (1-based) of the expected page in the top-k, or None if absent.
+
+    Parametrized by embedder + collection so experiments (chunk sizes,
+    alternative embedding models) reuse the exact same scoring logic.
+    """
+    query_embedding = embedder.encode(question).tolist()
+    result = collection.query(
+        query_embeddings=[query_embedding], n_results=k, include=["metadatas"]
+    )
+    for i, meta in enumerate(result["metadatas"][0], start=1):
+        if meta["file"] == expected["file"] and meta["page"] == expected["page"]:
+            return i
+    return None
+
+
+def hit_rates(questions, embedder, collection, k=TOP_K):
+    """Hit-rate@1/3/5 over a question list -> {1: x, 3: y, 5: z} (fractions)."""
+    ranks = [
+        rank_of_expected(q["question"], q["expected_source"], embedder, collection, k)
+        for q in questions
+    ]
+    return {
+        kk: sum(1 for r in ranks if r is not None and r <= kk) / len(ranks)
+        for kk in (1, 3, 5)
+    }
+
+
 def evaluate(run_llm: bool = False) -> None:
     questions = json.loads(QUESTIONS_PATH.read_text())
     answerable = [q for q in questions if q["expected_source"]]
@@ -42,7 +70,7 @@ def evaluate(run_llm: bool = False) -> None:
         t0 = time.perf_counter()
         query_embedding = embedder.encode(q["question"]).tolist()
         t1 = time.perf_counter()
-        result = collection.query(
+        collection.query(
             query_embeddings=[query_embedding],
             n_results=TOP_K,
             include=["metadatas"],
@@ -51,13 +79,9 @@ def evaluate(run_llm: bool = False) -> None:
         embed_ms.append((t1 - t0) * 1000)
         search_ms.append((t2 - t1) * 1000)
 
-        expected = q["expected_source"]
-        rank = None
-        for i, meta in enumerate(result["metadatas"][0], start=1):
-            if meta["file"] == expected["file"] and meta["page"] == expected["page"]:
-                rank = i
-                break
-        hits[q["question"]] = rank
+        hits[q["question"]] = rank_of_expected(
+            q["question"], q["expected_source"], embedder, collection
+        )
 
     # --- hit-rate table by question type ---
     print(f"Retrieval hit-rate ({len(answerable)} answerable questions, top-{TOP_K}):")

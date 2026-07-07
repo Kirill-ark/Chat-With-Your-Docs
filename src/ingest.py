@@ -38,8 +38,12 @@ def get_embedder() -> SentenceTransformer:
     return _embedder
 
 
-def get_collection() -> chromadb.Collection:
-    """Open (or create) the persisted Chroma collection, cosine similarity.
+def get_collection(name: str = COLLECTION_NAME) -> chromadb.Collection:
+    """Open (or create) a persisted Chroma collection, cosine similarity.
+
+    `name` defaults to the production collection; experiments (chunk-size,
+    embedding-model comparison) pass their own names to keep trial indexes
+    separate from the working one.
 
     The client is created once per process behind a lock: Streamlit Cloud runs
     sessions in parallel threads, and concurrent PersistentClient creation for
@@ -50,7 +54,7 @@ def get_collection() -> chromadb.Collection:
         if _client is None:
             _client = chromadb.PersistentClient(path=CHROMA_DIR)
     return _client.get_or_create_collection(
-        COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+        name, metadata={"hnsw:space": "cosine"}
     )
 
 
@@ -92,15 +96,29 @@ def chunk_text(
     return chunks
 
 
-def ingest_pdf(pdf_path: str) -> int:
+def ingest_pdf(
+    pdf_path: str,
+    collection: chromadb.Collection | None = None,
+    chunk_size: int = CHUNK_SIZE,
+    chunk_overlap: int = CHUNK_OVERLAP,
+    embedder: SentenceTransformer | None = None,
+) -> int:
     """Parse -> chunk -> embed -> store one PDF. Returns the number of chunks.
+
+    Defaults reproduce the production pipeline; experiments override the
+    collection / chunk settings / embedder so trials run the exact same code.
 
     Chunk ids are deterministic (file_page_index), so re-ingesting the same
     file overwrites its chunks (upsert) instead of duplicating them.
     """
+    if collection is None:
+        collection = get_collection()
+    if embedder is None:
+        embedder = get_embedder()
+
     documents, metadatas, ids = [], [], []
     for page in parse_pdf(pdf_path):
-        for i, chunk in enumerate(chunk_text(page["text"])):
+        for i, chunk in enumerate(chunk_text(page["text"], chunk_size, chunk_overlap)):
             documents.append(chunk)
             metadatas.append({"file": page["file"], "page": page["page"]})
             ids.append(f"{page['file']}_p{page['page']}_c{i}")
@@ -108,8 +126,8 @@ def ingest_pdf(pdf_path: str) -> int:
     if not documents:
         return 0
 
-    embeddings = get_embedder().encode(documents, show_progress_bar=False).tolist()
-    get_collection().upsert(
+    embeddings = embedder.encode(documents, show_progress_bar=False).tolist()
+    collection.upsert(
         ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas
     )
     return len(documents)

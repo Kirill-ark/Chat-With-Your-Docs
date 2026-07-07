@@ -7,3 +7,4 @@ chromadb           # local persisted vector database
 groq               # LLM API client (provider may change)
 streamlit          # chat + file-upload UI
 python-dotenv      # load .env locally
+matplotlib         # charts in notebooks/01_experiments.ipynb only
