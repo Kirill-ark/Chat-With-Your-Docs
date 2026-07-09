@@ -10,15 +10,11 @@ import re
 from src.config import TOP_K
 from src.ingest import get_collection, get_embedder
 
-# "page 5", "p. 5", "стр. 5", "страница 5" — a question about a specific page
-# is a STRUCTURAL query: semantic search can't answer it (embeddings encode
-# content meaning, not document structure), but chunk metadata can.
-# The negative lookbehind keeps Russian words that merely END in "стр" from
-# triggering routing ("оркестр 5", "регистр 8") — \b can't do this reliably
-# for Cyrillic because the preceding letter is also a word character.
-PAGE_REFERENCE = re.compile(
-    r"(?:\bpage\b|\bp\.|(?<![а-яёa-z])стр(?:аниц\w*|\.)?)\s*(\d+)", re.IGNORECASE
-)
+# "page 5", "p. 5" — a question about a specific page is a STRUCTURAL query:
+# semantic search can't answer it (embeddings encode content meaning, not
+# document structure), but chunk metadata can. English-only by design — the
+# embedding model (all-MiniLM-L6-v2) is English-only, so the whole app is.
+PAGE_REFERENCE = re.compile(r"(?:\bpage\b|\bp\.)\s*(\d+)", re.IGNORECASE)
 
 
 def detect_page_reference(question: str) -> int | None:

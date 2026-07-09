@@ -40,7 +40,7 @@ talk), reply politely and briefly. Do not mention the context.
 parentheses, using the exact file name and page number from that passage's \
 [Source: ...] label. NEVER append a separate list of sources at the end of \
 the answer — the app already shows the full source list below it.
-- Answer in the same language the question is asked in.
+- Answer in English.
 - Be concise and factual."""
 
 
