@@ -34,7 +34,9 @@ TOP_K = 5  # how many nearest chunks to pull for the LLM
 # Relevance floor: top-k always returns something, even for small talk or
 # off-topic questions. Observed score bands on the test corpus: real matches
 # 0.6-0.7, weak matches ~0.4, garbage <=0.13 — so 0.25 sits safely between.
-# To be validated against the eval set in Phase 6.
+# Validated on the eval set: it filters off-domain noise (~0.1), but ON-TOPIC
+# questions with no answer in the docs score 0.45+ and pass — those are
+# refused by the grounding prompt instead (two-layer defense, see README).
 MIN_SIMILARITY = 0.25
 
 # --- LLM (generation) ---

@@ -12,6 +12,18 @@ from groq import Groq
 from src.config import GROQ_API_KEY, LLM_MODEL, LLM_TEMPERATURE, MIN_SIMILARITY
 from src.retrieve import detect_page_reference, fetch_page, retrieve
 
+_client = None
+
+
+def _get_client() -> Groq:
+    """One Groq client per process, with a timeout so a hung connection fails
+    fast instead of freezing the UI spinner indefinitely."""
+    global _client
+    if _client is None:
+        _client = Groq(api_key=GROQ_API_KEY, timeout=30.0, max_retries=2)
+    return _client
+
+
 SYSTEM_PROMPT = """\
 You are an assistant that answers questions strictly from the provided context.
 
@@ -43,9 +55,9 @@ def build_user_prompt(question: str, chunks: list[dict]) -> str:
 def answer(question: str) -> dict:
     """Full RAG answer: retrieve -> grounded prompt -> LLM.
 
-    Returns {"answer": str, "sources": [{"file", "page", "score"}, ...]}.
-    Sources are the retrieved chunks' metadata — what the model was actually
-    shown — ordered best-match first.
+    Returns {"answer": str, "sources": [{"file", "page", "score", "text"}, ...]}.
+    Sources are the retrieved chunks themselves — what the model was actually
+    shown — ordered best-match first; the UI displays their text snippets.
     """
     if not GROQ_API_KEY:
         raise RuntimeError(
@@ -63,8 +75,7 @@ def answer(question: str) -> dict:
         # shows meaningless "sources" under small-talk replies.
         chunks = [c for c in retrieve(question) if c["score"] >= MIN_SIMILARITY]
 
-    client = Groq(api_key=GROQ_API_KEY)
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=LLM_MODEL,
         temperature=LLM_TEMPERATURE,
         messages=[

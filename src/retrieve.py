@@ -13,8 +13,11 @@ from src.ingest import get_collection, get_embedder
 # "page 5", "p. 5", "стр. 5", "страница 5" — a question about a specific page
 # is a STRUCTURAL query: semantic search can't answer it (embeddings encode
 # content meaning, not document structure), but chunk metadata can.
+# The negative lookbehind keeps Russian words that merely END in "стр" from
+# triggering routing ("оркестр 5", "регистр 8") — \b can't do this reliably
+# for Cyrillic because the preceding letter is also a word character.
 PAGE_REFERENCE = re.compile(
-    r"(?:\bpage\b|\bp\.|стр\.?|страниц\w*)\s*(\d+)", re.IGNORECASE
+    r"(?:\bpage\b|\bp\.|(?<![а-яёa-z])стр(?:аниц\w*|\.)?)\s*(\d+)", re.IGNORECASE
 )
 
 
@@ -34,8 +37,13 @@ def fetch_page(page: int) -> list[dict]:
         where={"page": page}, include=["documents", "metadatas"]
     )
     chunks = [
-        {"text": text, "file": meta["file"], "page": meta["page"], "score": None,
-         "_id": chunk_id}
+        {
+            "text": text,
+            "file": meta["file"],
+            "page": meta["page"],
+            "score": None,
+            "_id": chunk_id,
+        }
         for chunk_id, text, meta in zip(
             result["ids"], result["documents"], result["metadatas"]
         )

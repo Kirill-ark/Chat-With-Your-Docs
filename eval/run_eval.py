@@ -7,8 +7,11 @@ Usage:
 Measures, per the project plan:
 - hit-rate@1/3/5: did the expected page land in the top-k? Split by question
   type (direct vs paraphrased) — paraphrased questions stress the embeddings.
-- unanswerable questions: how many chunks leak through the MIN_SIMILARITY
-  floor (ideally zero — the floor is what makes the assistant refuse cleanly).
+- unanswerable questions vs the relevance floor: the floor rejects off-domain
+  noise, but on-topic questions whose answer is absent score above it —
+  topical closeness is not answer presence. For those the refusal comes from
+  the grounding prompt (the second defense layer). This section shows which
+  layer handles each question.
 - latency medians per stage: query embedding / vector search / LLM call.
 """
 
@@ -26,6 +29,14 @@ from src.retrieve import retrieve
 QUESTIONS_PATH = Path(__file__).parent / "questions.json"
 
 
+def _rank_in(metadatas, expected):
+    """1-based rank of the expected (file, page) in a metadata list, or None."""
+    for i, meta in enumerate(metadatas, start=1):
+        if meta["file"] == expected["file"] and meta["page"] == expected["page"]:
+            return i
+    return None
+
+
 def rank_of_expected(question, expected, embedder, collection, k=TOP_K):
     """Rank (1-based) of the expected page in the top-k, or None if absent.
 
@@ -36,10 +47,7 @@ def rank_of_expected(question, expected, embedder, collection, k=TOP_K):
     result = collection.query(
         query_embeddings=[query_embedding], n_results=k, include=["metadatas"]
     )
-    for i, meta in enumerate(result["metadatas"][0], start=1):
-        if meta["file"] == expected["file"] and meta["page"] == expected["page"]:
-            return i
-    return None
+    return _rank_in(result["metadatas"][0], expected)
 
 
 def hit_rates(questions, embedder, collection, k=TOP_K):
@@ -61,6 +69,11 @@ def evaluate(run_llm: bool = False) -> None:
 
     embedder = get_embedder()
     collection = get_collection()
+    if collection.count() == 0:
+        sys.exit(
+            "The vector collection is empty — ingest the test corpus first:\n"
+            "  python -m src.ingest data/testing.pdf"
+        )
     embedder.encode("warm-up")  # first call loads weights; keep it out of timings
 
     embed_ms, search_ms, llm_ms = [], [], []
@@ -70,7 +83,7 @@ def evaluate(run_llm: bool = False) -> None:
         t0 = time.perf_counter()
         query_embedding = embedder.encode(q["question"]).tolist()
         t1 = time.perf_counter()
-        collection.query(
+        result = collection.query(
             query_embeddings=[query_embedding],
             n_results=TOP_K,
             include=["metadatas"],
@@ -79,22 +92,16 @@ def evaluate(run_llm: bool = False) -> None:
         embed_ms.append((t1 - t0) * 1000)
         search_ms.append((t2 - t1) * 1000)
 
-        hits[q["question"]] = rank_of_expected(
-            q["question"], q["expected_source"], embedder, collection
-        )
+        hits[q["question"]] = _rank_in(result["metadatas"][0], q["expected_source"])
 
     # --- hit-rate table by question type ---
     print(f"Retrieval hit-rate ({len(answerable)} answerable questions, top-{TOP_K}):")
     print(f"{'type':<14}{'n':>3}{'hit@1':>8}{'hit@3':>8}{'hit@5':>8}")
     types = ["direct", "paraphrased"]
     for qtype in types + ["all"]:
-        subset = [
-            q for q in answerable if qtype == "all" or q["type"] == qtype
-        ]
+        subset = [q for q in answerable if qtype == "all" or q["type"] == qtype]
         ranks = [hits[q["question"]] for q in subset]
-        row = [
-            sum(1 for r in ranks if r is not None and r <= k) for k in (1, 3, 5)
-        ]
+        row = [sum(1 for r in ranks if r is not None and r <= k) for k in (1, 3, 5)]
         print(
             f"{qtype:<14}{len(subset):>3}"
             + "".join(f"{h}/{len(subset)}".rjust(8) for h in row)
@@ -106,14 +113,23 @@ def evaluate(run_llm: bool = False) -> None:
         for q in misses:
             print(f"  [{q['type']}] {q['question']}")
 
-    # --- unanswerable: does the relevance floor hold? ---
-    print(f"\nUnanswerable questions vs MIN_SIMILARITY={MIN_SIMILARITY}:")
+    # --- unanswerable: which defense layer handles each one? ---
+    print(f"\nUnanswerable questions vs relevance floor ({MIN_SIMILARITY}):")
     for q in unanswerable:
         chunks = retrieve(q["question"])
-        leaked = [c for c in chunks if c["score"] >= MIN_SIMILARITY]
+        if not chunks:
+            print(f"  nothing retrieved | {q['question'][:60]}")
+            continue
         top = max(c["score"] for c in chunks)
-        status = "OK (refused)" if not leaked else f"LEAKED {len(leaked)} chunks"
-        print(f"  top score {top:.3f} — {status} | {q['question'][:60]}")
+        passed = [c for c in chunks if c["score"] >= MIN_SIMILARITY]
+        if not passed:
+            layer = "below floor -> filtered out, immediate refusal"
+        else:
+            layer = (
+                f"{len(passed)} chunks pass the floor (on-topic) -> "
+                "refusal is up to the grounding prompt"
+            )
+        print(f"  top score {top:.3f} — {layer} | {q['question'][:60]}")
 
     # --- optional: LLM latency ---
     if run_llm:
@@ -132,7 +148,10 @@ def evaluate(run_llm: bool = False) -> None:
                 temperature=LLM_TEMPERATURE,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": build_user_prompt(q["question"], chunks)},
+                    {
+                        "role": "user",
+                        "content": build_user_prompt(q["question"], chunks),
+                    },
                 ],
             )
             llm_ms.append((time.perf_counter() - t0) * 1000)
@@ -156,4 +175,4 @@ if __name__ == "__main__":
         "--llm", action="store_true", help="also measure LLM call latency (Groq API)"
     )
     args = parser.parse_args()
-    sys.exit(evaluate(run_llm=args.llm))
+    evaluate(run_llm=args.llm)

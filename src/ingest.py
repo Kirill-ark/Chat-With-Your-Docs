@@ -21,6 +21,7 @@ from src.config import (
 )
 
 _embedder = None
+_embedder_lock = threading.Lock()
 _client = None
 _client_lock = threading.Lock()
 
@@ -31,10 +32,14 @@ def get_embedder() -> SentenceTransformer:
     Retrieval imports this same function, which guarantees documents and
     queries are embedded by the SAME model — a mismatch would put their
     vectors in different spaces and make similarity search return garbage.
+
+    The lock prevents two concurrent Streamlit sessions from loading the
+    model twice (transient double memory footprint on a small container).
     """
     global _embedder
-    if _embedder is None:
-        _embedder = SentenceTransformer(EMBEDDING_MODEL)
+    with _embedder_lock:
+        if _embedder is None:
+            _embedder = SentenceTransformer(EMBEDDING_MODEL)
     return _embedder
 
 
@@ -53,9 +58,16 @@ def get_collection(name: str = COLLECTION_NAME) -> chromadb.Collection:
     with _client_lock:
         if _client is None:
             _client = chromadb.PersistentClient(path=CHROMA_DIR)
-    return _client.get_or_create_collection(
-        name, metadata={"hnsw:space": "cosine"}
-    )
+    return _client.get_or_create_collection(name, metadata={"hnsw:space": "cosine"})
+
+
+def clear_collection() -> None:
+    """Remove every stored chunk. The deployed app shares one index across
+    visitors, so the UI offers this as an explicit reset."""
+    collection = get_collection()
+    ids = collection.get(include=[])["ids"]
+    if ids:
+        collection.delete(ids=ids)
 
 
 def parse_pdf(pdf_path: str) -> list[dict]:
@@ -83,8 +95,8 @@ def chunk_text(
     share `overlap` characters — a sentence cut at one chunk's boundary
     survives intact at the start of the next one.
     """
-    if overlap >= size:
-        raise ValueError("overlap must be smaller than chunk size")
+    if not 0 <= overlap < size:
+        raise ValueError("overlap must be non-negative and smaller than chunk size")
     step = size - overlap
     chunks = []
     for start in range(0, len(text), step):
@@ -108,13 +120,18 @@ def ingest_pdf(
     Defaults reproduce the production pipeline; experiments override the
     collection / chunk settings / embedder so trials run the exact same code.
 
-    Chunk ids are deterministic (file_page_index), so re-ingesting the same
-    file overwrites its chunks (upsert) instead of duplicating them.
+    Re-ingesting a file REPLACES its chunks entirely: previously stored chunks
+    of the same filename are deleted first, so an edited document leaves no
+    stale chunks behind (an upsert alone would keep chunks whose ids vanished
+    from the new version — deleted pages would still get retrieved and cited).
     """
     if collection is None:
         collection = get_collection()
     if embedder is None:
         embedder = get_embedder()
+
+    filename = Path(pdf_path).name
+    collection.delete(where={"file": filename})
 
     documents, metadatas, ids = [], [], []
     for page in parse_pdf(pdf_path):

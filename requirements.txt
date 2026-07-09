@@ -1,10 +1,13 @@
-# Core RAG stack. Versions left loose for now; pin exact versions in Phase 8
-# once the app runs end-to-end (important for reproducible Streamlit Cloud deploy).
+# Pinned to the versions the app was built and evaluated with — the deployed
+# container reinstalls on every rebuild, and an unpinned major bump of
+# chromadb/torch/streamlit could silently break the app or the index format.
 
-pymupdf            # PDF parsing (text + page numbers for citations)
-sentence-transformers  # local embeddings (all-MiniLM-L6-v2)
-chromadb           # local persisted vector database
-groq               # LLM API client (provider may change)
-streamlit          # chat + file-upload UI
-python-dotenv      # load .env locally
-matplotlib         # charts in notebooks/01_experiments.ipynb only
+pymupdf==1.28.0            # PDF parsing (text + page numbers for citations)
+sentence-transformers==5.6.0  # local embeddings (all-MiniLM-L6-v2)
+chromadb==1.5.9            # local persisted vector database
+groq==1.5.0                # LLM API client
+streamlit==1.58.0          # chat + file-upload UI
+python-dotenv==1.2.2       # load .env locally
+matplotlib==3.11.0         # charts in notebooks/01_experiments.ipynb only
+
+# To re-run the notebook you additionally need: pip install jupyter

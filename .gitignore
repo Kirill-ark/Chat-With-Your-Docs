@@ -220,8 +220,14 @@ __marimo__/
 # --- Chat-With-Your-Docs project-specific ---
 # Persisted vector database (regenerated locally from PDFs)
 chroma_db/
-# Test / user PDFs — do not commit documents
-data/
-*.pdf
+# User documents are never committed — EXCEPT the eval corpus, which the
+# labelled questions in eval/questions.json depend on (reproducibility)
+data/*
+!data/testing.pdf
 # PyCharm project files
 .idea/
+# Raw screen recording (12 MB) — the compressed demo.gif is what ships
+screenshots/record.gif
+
+# macOS
+.DS_Store
