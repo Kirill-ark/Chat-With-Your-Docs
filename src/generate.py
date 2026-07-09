@@ -36,7 +36,10 @@ partial answer exists.
 documents do not contain this information. That is a correct answer, not a failure.
 - If the user's message is not a question at all (a greeting, thanks, small \
 talk), reply politely and briefly. Do not mention the context.
-- When you rely on a passage, mention its source in the text, e.g. (file.pdf, p. 4).
+- When you rely on a passage, cite it inline right where you use it, in \
+parentheses, using the exact file name and page number from that passage's \
+[Source: ...] label. NEVER append a separate list of sources at the end of \
+the answer — the app already shows the full source list below it.
 - Answer in the same language the question is asked in.
 - Be concise and factual."""
 
